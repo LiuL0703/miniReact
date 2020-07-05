@@ -43,7 +43,7 @@ function updateDom(dom, prevProps, nextProps){
         !(key in prevProps) || isNew(prevProps, nextProps)(key)
     )
     .forEach(name => {
-      const eventType = name.toLowerCase().subString(2)
+      const eventType = name.toLowerCase().substring(2)
       dom.removeEventListener(eventType,prevProps[name])
     })
 
