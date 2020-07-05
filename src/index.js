@@ -43,7 +43,7 @@ function updateDom(dom, prevProps, nextProps){
         !(key in prevProps) || isNew(prevProps, nextProps)(key)
     )
     .forEach(name => {
-      const eventType = name.toLowerCase().subString(2)
+      const eventType = name.toLowerCase().substring(2)
       dom.removeEventListener(eventType,prevProps[name])
     })
 
@@ -137,9 +137,42 @@ function workLoop(deadline){
 
 requestIdleCallback(workLoop)
 
+let wipFiber = null
+let hookIndex = null
+
 function updateFunctionComponent(fiber){
+  wipFiber = fiber
+  hookIndex = 0
+  wipFiber.hooks = []
   const children = [fiber.type(fiber.props)]
   reconcileChildren(fiber, children)
+}
+
+function useState(initial){
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex]
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: []
+  }
+
+  const actions = oldHook ? oldHook.queue : []
+  actions.forEach(action => {
+    hook.state = action(hook.state)
+  })
+  const setState = action => {
+    hook.queue.push(action)
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot
+    }
+    nextUnitOfWork = wipRoot
+    deletions = []
+  }
+
+  wipFiber.hooks.push(hook)
+  hookIndex++
+  return [hook.state, setState]
 }
 
 function updateHostComponent(fiber){
@@ -221,24 +254,10 @@ function reconcileChildren(wipFiber, elements){
   }
 }
 
-// function render(element, container){
-//   const dom = element.type === 'TEXT_ELEMENT' 
-//     ? document.createTextNode("") 
-//     : document.createElement(element.type)
-
-//   const isProperty = key => key !== "children";
-//   Object.keys(element.props).filter(isProperty).forEach(name => {
-//     dom[name] = element.props[name]
-//   }) 
-
-//   // 一旦递归开始 无法暂停去执行高优先级任务比如响应用户输入等
-//   element.props.children.forEach(child => render(child, dom))
-//   container.appendChild(dom)
-// }
-
 const MiniReact = {
   createElement,
-  render
+  render,
+  useState
 }
 // babel转译时使用自定义的createElement 而不是React默认的
 /** @jsx MiniReact.createElement */
@@ -250,10 +269,15 @@ const MiniReact = {
 // );
 
 
-function App(props) {
-  return <h1>Hi {props.name}</h1>
+function Counter() {
+  const [state, setState] = MiniReact.useState(1)
+  return (
+    <h1 onClick={() => setState(c => c + 1)}>
+      Count: {state}
+    </h1>
+  )
 }
-const element = <App name="foo" />
+const element = <Counter />
 const container = document.getElementById('root')
 MiniReact.render(element, container);
 
